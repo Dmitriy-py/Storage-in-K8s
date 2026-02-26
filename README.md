@@ -106,11 +106,156 @@ spec:
 
 ---
 
+## Задание 2. PV, PVC
 
+### Задача
 
+### Создать Deployment приложения, использующего локальный PV, созданный вручную.
 
+### Шаги выполнения
 
+  1. Создать Deployment приложения, состоящего из контейнеров busybox и multitool, использующего созданный ранее PVC
+  2. Создать PV и PVC для подключения папки на локальной ноде, которая будет использована в поде.
+  3. Продемонстрировать, что контейнер multitool может читать данные из файла в смонтированной директории, в который             busybox записывает данные каждые 5 секунд.
+  4. Удалить Deployment и PVC. Продемонстрировать, что после этого произошло с PV. Пояснить, почему. (Используйте команду        kubectl describe pv).
+  5. Продемонстрировать, что файл сохранился на локальном диске ноды. Удалить PV. Продемонстрировать, что произошло с            файлом после удаления PV. Пояснить, почему.
 
+### Что сдать на проверку
+   * Манифесты:
+      * pv-pvc.yaml
+   * Скриншоты:
+      * каждый шаг выполнения задания, начиная с шага 2.
+   * Описания:
+      * объяснение наблюдаемого поведения ресурсов в двух последних шагах.
+
+## Ответ:
+
+## 1. Манифест ` pv-pvc.yaml `
+
+```yaml
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv-local
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  hostPath:
+    path: "/data/pv-shared"
+  storageClassName: manual
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pvc-local
+spec:
+  storageClassName: manual
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pvc-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: storage-test
+  template:
+    metadata:
+      labels:
+        app: storage-test
+    spec:
+      containers:
+        - name: busybox
+          image: busybox
+          command: ['sh', '-c', 'while true; do date >> /data/shared_data.txt; sleep 5; done']
+          volumeMounts:
+            - name: my-persistent-storage
+              mountPath: /data
+        - name: multitool
+          image: wbitt/network-multitool
+          env:
+            - name: HTTP_PORT
+              value: "8080"
+          volumeMounts:
+            - name: my-persistent-storage
+              mountPath: /data
+      volumes:
+        - name: my-persistent-storage
+          persistentVolumeClaim:
+            claimName: pvc-local
+```
+
+## 2. Описание и объяснение поведения ресурсов
+
+### Cоздания директории и включения ` hostpath-storage `
+
+<img width="1920" height="1080" alt="Снимок экрана (2800)" src="https://github.com/user-attachments/assets/cb61bacd-a55c-40c3-a242-e995073d4c18" />
+
+### Применения манифеста `pv-pvc.yaml `
+
+<img width="1920" height="1080" alt="Снимок экрана (2801)" src="https://github.com/user-attachments/assets/9477a8d8-5357-41bd-bb39-b1693cd6107c" />
+
+### Выводы kubectl `get pv,pvc` и `kubectl get pods`
+
+<img width="1920" height="1080" alt="Снимок экрана (2803)" src="https://github.com/user-attachments/assets/11eec6b7-b528-4e9d-8198-d86ae4d5b78a" />
+
+### Вывод `tail -f` из контейнера `multitool`
+
+<img width="1920" height="1080" alt="Снимок экрана (2804)" src="https://github.com/user-attachments/assets/6ceb42cc-4ddd-4fb5-ba41-a79c018245b6" />
+
+### Удаления `Deployment` и `PVC`, `kubectl describe pv`
+
+<img width="1920" height="1080" alt="Снимок экрана (2805)" src="https://github.com/user-attachments/assets/6c84715f-1463-4137-a1b9-c899222a37d3" />
+
+### `cat` файла на локальном диске ноды
+
+<img width="1920" height="1080" alt="Снимок экрана (2806)" src="https://github.com/user-attachments/assets/322911e1-1b8f-4589-9743-5629508b778b" />
+
+### удаления `PV` и финальной проверки наличия файла на диске
+
+<img width="1920" height="1080" alt="Снимок экрана (2807)" src="https://github.com/user-attachments/assets/2285d307-d290-4510-a448-00d49e269139" />
+
+### Удаление `Deployment и PVC`. Состояние `PV`.
+
+```
+Наблюдаемое поведение:
+После удаления Deployment и PVC команда kubectl get pv показывает, что статус pv-local изменился с Bound на Released.
+
+Пояснение:
+Статус Released означает, что запрос (PVC), который удерживал этот объем, был удален. Поскольку в манифесте PV была указана политика persistentVolumeReclaimPolicy: Retain, Kubernetes не удаляет сам объем и данные в нем. Однако PV не возвращается автоматически в статус Available, так как он все еще содержит данные предыдущего пользователя (PVC) и требует ручного вмешательства администратора для повторного использования.
+```
+
+### Сохранность файла на локальном диске ноды.
+
+```
+Наблюдаемое поведение:
+При проверке директории на хост-системе (/data/pv-shared/shared_data.txt) файл остается на месте и содержит все записанные ранее данные.
+
+Пояснение:
+Это результат работы политики Retain. Она гарантирует, что физические данные на ноде сохраняются независимо от жизненного цикла объектов PVC в кластере.
+```
+
+### Удаление PV и состояние файла.
+
+```
+Наблюдаемое поведение:
+После удаления объекта PV с помощью kubectl delete pv pv-local, файл на локальном диске по адресу /data/pv-shared/shared_data.txt по-прежнему существует.
+
+Пояснение:
+Для типов томов hostPath Kubernetes управляет только объектом в API (самой записью о PV). При удалении ресурса PV из кластера, Kubernetes удаляет только "логическое" описание тома. Удаление фактических данных в локальной директории на ноде не производится. Это механизм защиты от случайной потери данных, требующий от администратора системы ручной очистки дискового пространства на физическом уровне.
+```
 
 
 
