@@ -257,10 +257,104 @@ spec:
 Для типов томов hostPath Kubernetes управляет только объектом в API (самой записью о PV). При удалении ресурса PV из кластера, Kubernetes удаляет только "логическое" описание тома. Удаление фактических данных в локальной директории на ноде не производится. Это механизм защиты от случайной потери данных, требующий от администратора системы ручной очистки дискового пространства на физическом уровне.
 ```
 
+## Задание 3. StorageClass
 
+### Задача
 
+#### Создать `Deployment` приложения, использующего `PVC`, созданный на основе `StorageClass`.
 
+### Шаги выполнения
 
+1. Создать `Deployment` приложения, состоящего из контейнеров `busybox` и `multitool`, использующего созданный ранее `PVC`.
+2. Создать `SC` и `PVC` для подключения папки на локальной ноде, которая будет использована в поде.
+3. Продемонстрировать, что контейнер multitool может читать данные из файла в смонтированной директории, в который busybox     записывает данные каждые 5 секунд.
+
+### Что сдать на проверку
+
+  * Манифесты:
+     * sc.yaml
+  * Скриншоты:
+     * каждый шаг выполнения задания, начиная с шага 2
+   
+## Ответ:
+
+## 1. Манифест `sc.yaml`
+
+```yaml
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+name: local-path-sc
+provisioner: microk8s.io/hostpath
+reclaimPolicy: Delete
+volumeBindingMode: Immediate
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+name: sc-pvc
+spec:
+storageClassName: local-path-sc
+accessModes:
+- ReadWriteOnce
+resources:
+requests:
+storage: 500Mi
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+name: sc-deployment
+spec:
+replicas: 1
+selector:
+matchLabels:
+app: sc-test
+template:
+metadata:
+labels:
+app: sc-test
+spec:
+containers:
+- name: busybox
+image: busybox
+command: ['sh', '-c', 'while true; do date >> /data/dynamic_data.txt; sleep 5; done']
+volumeMounts:
+- name: dynamic-storage
+mountPath: /data
+- name: multitool
+image: wbitt/network-multitool
+env:
+- name: HTTP_PORT
+value: "8080"
+volumeMounts:
+- name: dynamic-storage
+mountPath: /data
+volumes:
+- name: dynamic-storage
+persistentVolumeClaim:
+claimName: sc-pvc
+```
+## 2. Описание процесса и результаты
+
+В данном задании был реализован механизм динамического выделения ресурсов:
+1. Создан **StorageClass**, использующий провиженер `microk8s.io/hostpath`.
+2. Создан **PVC**, который автоматически инициировал создание соответствующего **PV** (статус `Bound` подтверждает успешную связку).
+3. Развернут **Deployment** с двумя контейнерами, которые используют общий динамический том для обмена данными.
+
+## 3. Скриншоты
+
+### 1. Применение манифеста `sc.yaml`.
+
+<img width="1920" height="1080" alt="Снимок экрана (2808)" src="https://github.com/user-attachments/assets/7f0761f3-b5dd-4167-b215-6e0df3ebd2e4" />
+
+### 2. Вывод `kubectl get sc,pvc,pv`, демонстрирующий автоматическое создание PV.
+
+<img width="1920" height="1080" alt="Снимок экрана (2809)" src="https://github.com/user-attachments/assets/65cbd2ce-9efd-4f28-9037-32286c0d0b7c" />
+
+### 3. Вывод `tail -f /data/dynamic_data.txt` из контейнера `multitool`, подтверждающий запись и чтение данных.
+
+<img width="1920" height="1080" alt="Снимок экрана (2811)" src="https://github.com/user-attachments/assets/0f756d6d-d425-4cfb-b617-f272e22ef031" />
 
 
 
