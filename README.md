@@ -93,7 +93,7 @@ spec:
     ```bash
     microk8s kubectl describe pod data-exchange-697f4448db-4xghf
     ```
-    <img width="1920" height="1080" alt="Снимок экрана (2798)" src="https://github.com/user-attachments/assets/6cc6230a-1d51-4e23-8bc0-18bde6139065" />
+<img width="1920" height="1080" alt="Снимок экрана (2798)" src="https://github.com/user-attachments/assets/6cc6230a-1d51-4e23-8bc0-18bde6139065" />
 
 <img width="1920" height="1080" alt="Снимок экрана (2799)" src="https://github.com/user-attachments/assets/632601c8-667d-4da0-92ad-0f7b8a69db55" />
 
